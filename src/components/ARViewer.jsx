@@ -16,7 +16,12 @@ const ARViewer = () => {
     scene = new THREE.Scene();
 
     // ✅ Camera
-    camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+    camera = new THREE.PerspectiveCamera(
+      70,
+      window.innerWidth / window.innerHeight,
+      0.01,
+      20
+    );
 
     // ✅ Renderer
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -57,7 +62,7 @@ const ARViewer = () => {
       (err) => console.error("Error loading model:", err)
     );
 
-    // ✅ Orbit Controls (Desktop + Mobile Touch)
+    // ✅ Orbit Controls (Desktop + Mobile)
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.enablePan = false;
@@ -67,11 +72,11 @@ const ARViewer = () => {
     controls.maxDistance = 2.5;
     controls.rotateSpeed = 0.6;
     controls.zoomSpeed = 0.8;
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.5;
 
     // ✅ AR Button
-    const arButton = ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] });
+    const arButton = ARButton.createButton(renderer, {
+      requiredFeatures: ["hit-test"],
+    });
     document.body.appendChild(arButton);
 
     // ✅ AR Session Events
@@ -87,14 +92,11 @@ const ARViewer = () => {
       session.addEventListener("select", onSelect);
     });
 
-    // 🎥 Animation Loop
+    // 🎥 Animation Loop (No auto rotation)
     const clock = new THREE.Clock();
     renderer.setAnimationLoop((timestamp, frame) => {
       const delta = clock.getDelta();
       controls.update();
-      if (model && controls.autoRotate) {
-        model.rotation.y += delta * 0.3;
-      }
 
       // ✅ AR Hit Test
       if (frame) {
@@ -103,7 +105,9 @@ const ARViewer = () => {
 
         if (!hitTestSourceRequested) {
           session.requestReferenceSpace("viewer").then((refSpace) => {
-            session.requestHitTestSource({ space: refSpace }).then((source) => (hitTestSource = source));
+            session
+              .requestHitTestSource({ space: refSpace })
+              .then((source) => (hitTestSource = source));
           });
 
           session.addEventListener("end", () => {
