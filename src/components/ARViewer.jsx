@@ -1,104 +1,38 @@
 import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { createARScene } from "./ARScene.js";
+import { loadModel } from "./ModelLoader.js";
+import { setupARButton } from "./ARButtonComponent.js";
 
 const ARViewer = () => {
   const containerRef = useRef();
 
   useEffect(() => {
-    let scene, camera, renderer, model, reticle, controls;
+    let scene, camera, renderer, controls, reticle, model;
     let hitTestSource = null;
     let hitTestSourceRequested = false;
 
-    // ✅ Scene
-    scene = new THREE.Scene();
-
-    // ✅ Camera
-    camera = new THREE.PerspectiveCamera(
-      70,
-      window.innerWidth / window.innerHeight,
-      0.01,
-      20
-    );
-
-    // ✅ Renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.xr.enabled = true;
-    containerRef.current.appendChild(renderer.domElement);
-
-    // ✅ Lighting
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x888888, 1);
-    hemiLight.position.set(0, 1, 0);
-    scene.add(hemiLight);
-
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-    dirLight.position.set(1, 2, 1);
-    scene.add(dirLight);
-
-    // ✅ Reticle (AR placement ring)
-    reticle = new THREE.Mesh(
-      new THREE.RingGeometry(0.08, 0.1, 32).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0x00ff00 })
-    );
-    reticle.matrixAutoUpdate = false;
-    reticle.visible = false;
-    scene.add(reticle);
+    // ✅ Create Scene, Camera, Renderer, Controls, Reticle
+    const setup = createARScene(containerRef.current);
+    scene = setup.scene;
+    camera = setup.camera;
+    renderer = setup.renderer;
+    controls = setup.controls;
+    reticle = setup.reticle;
 
     // ✅ Load 3D Model
-    const loader = new GLTFLoader();
-    loader.load(
-      "/models/Sofa.glb",
-      (gltf) => {
-        model = gltf.scene;
-        model.scale.set(0.3, 0.3, 0.3);
-        model.position.set(0, 0, -0.5);
-        scene.add(model);
-        controls.target.copy(model.position);
-      },
-      undefined,
-      (err) => console.error("Error loading model:", err)
-    );
-
-    // ✅ Orbit Controls (Desktop + Mobile)
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.enablePan = false;
-    controls.enableZoom = true;
-    controls.enableRotate = true;
-    controls.minDistance = 0.3;
-    controls.maxDistance = 2.5;
-    controls.rotateSpeed = 0.6;
-    controls.zoomSpeed = 0.8;
-
-    // ✅ AR Button
-    const arButton = ARButton.createButton(renderer, {
-      requiredFeatures: ["hit-test"],
-    });
-    document.body.appendChild(arButton);
-
-    // ✅ AR Session Events
-    renderer.xr.addEventListener("sessionstart", () => {
-      const session = renderer.xr.getSession();
-
-      const onSelect = () => {
-        if (reticle.visible && model) {
-          model.visible = true;
-          model.position.setFromMatrixPosition(reticle.matrix);
-        }
-      };
-      session.addEventListener("select", onSelect);
+    loadModel(scene, controls).then((m) => {
+      model = m;
+      setupARButton(renderer, model, reticle);
     });
 
-    // 🎥 Animation Loop (No auto rotation)
+    // 🎥 Animation Loop
     const clock = new THREE.Clock();
     renderer.setAnimationLoop((timestamp, frame) => {
       const delta = clock.getDelta();
       controls.update();
 
-      // ✅ AR Hit Test
+      // ✅ AR hit test
       if (frame) {
         const referenceSpace = renderer.xr.getReferenceSpace();
         const session = renderer.xr.getSession();
@@ -134,7 +68,7 @@ const ARViewer = () => {
       renderer.render(scene, camera);
     });
 
-    // ✅ Handle Window Resize
+    // ✅ Handle Resize
     const onResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
@@ -156,7 +90,7 @@ const ARViewer = () => {
       style={{
         width: "100vw",
         height: "100vh",
-        background: "white",
+        background: "#fff",
         overflow: "hidden",
       }}
     />
