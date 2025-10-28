@@ -18,43 +18,67 @@ export function setupARButton(renderer, model, reticle) {
 
     session.addEventListener("select", onSelect);
 
-    // ✋ Add touch gesture listeners
+    // ✋ Gesture variables
     let startDistance = 0;
     let startScale = 1;
+    let prevX = null;
+    let prevY = null;
+    let mode = null; // "rotate" or "move"
 
+    // 👉 Touch start
     window.addEventListener("touchstart", (e) => {
+      if (!model.visible) return;
+
       if (e.touches.length === 2) {
+        // Two fingers → Zoom
         const dx = e.touches[0].pageX - e.touches[1].pageX;
         const dy = e.touches[0].pageY - e.touches[1].pageY;
         startDistance = Math.hypot(dx, dy);
         startScale = model.scale.x;
+        mode = "zoom";
+      } else if (e.touches.length === 1) {
+        // One finger → move or rotate depending on gesture direction
+        prevX = e.touches[0].pageX;
+        prevY = e.touches[0].pageY;
+        mode = "move";
       }
     });
 
+    // 👉 Touch move
     window.addEventListener("touchmove", (e) => {
-      if (model.visible && e.touches.length === 2) {
+      if (!model.visible) return;
+
+      // 🔹 Zoom (pinch)
+      if (mode === "zoom" && e.touches.length === 2) {
         const dx = e.touches[0].pageX - e.touches[1].pageX;
         const dy = e.touches[0].pageY - e.touches[1].pageY;
         const newDistance = Math.hypot(dx, dy);
         const scale = (newDistance / startDistance) * startScale;
         model.scale.set(scale, scale, scale);
       }
-    });
 
-    // 👉 One-finger drag to rotate
-    let prevX = null;
-    window.addEventListener("touchmove", (e) => {
-      if (model.visible && e.touches.length === 1) {
-        if (prevX !== null) {
-          const deltaX = e.touches[0].pageX - prevX;
-          model.rotation.y -= deltaX * 0.01;
-        }
+      // 🔹 Move (1 finger drag)
+      if (mode === "move" && e.touches.length === 1) {
+        const deltaX = e.touches[0].pageX - prevX;
+        const deltaY = e.touches[0].pageY - prevY;
+
+        // move sensitivity
+        const moveSpeed = 0.001;
+
+        // Move model on X-Z plane (floor)
+        model.position.x -= deltaX * moveSpeed;
+        model.position.z += deltaY * moveSpeed;
+
         prevX = e.touches[0].pageX;
+        prevY = e.touches[0].pageY;
       }
     });
 
-    window.addEventListener("touchend", () => {
+    // 👉 Touch end
+    window.addEventListener("touchend", (e) => {
       prevX = null;
+      prevY = null;
+      mode = null;
     });
   });
 }
