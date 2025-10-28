@@ -18,102 +18,67 @@ export function setupARButton(renderer, model, reticle) {
 
     session.addEventListener("select", onSelect);
 
-    // Gesture state
-    let mode = null; // "single" (rotate+vertical move), "two" (pan+zoom)
-    let prevX = 0, prevY = 0;
-    let prevMidX = 0, prevMidY = 0;
+    // ✋ Gesture variables
     let startDistance = 0;
     let startScale = 1;
-    const moveSpeed = 0.0015;   // tweak for translation sensitivity
-    const rotateSpeed = 0.01;   // tweak for rotation sensitivity
-    const verticalMoveSpeed = 0.001; // vertical drag moves forward/back
+    let prevX = null;
+    let prevY = null;
+    let mode = null; // "rotate" or "move"
 
-    // helper: midpoint of two touches
-    function midpoint(t0, t1) {
-      return {
-        x: (t0.pageX + t1.pageX) / 2,
-        y: (t0.pageY + t1.pageY) / 2
-      };
-    }
-
+    // 👉 Touch start
     window.addEventListener("touchstart", (e) => {
       if (!model.visible) return;
 
-      if (e.touches.length === 1) {
-        mode = "single";
-        prevX = e.touches[0].pageX;
-        prevY = e.touches[0].pageY;
-      } else if (e.touches.length === 2) {
-        mode = "two";
+      if (e.touches.length === 2) {
+        // Two fingers → Zoom
         const dx = e.touches[0].pageX - e.touches[1].pageX;
         const dy = e.touches[0].pageY - e.touches[1].pageY;
         startDistance = Math.hypot(dx, dy);
         startScale = model.scale.x;
-
-        const mid = midpoint(e.touches[0], e.touches[1]);
-        prevMidX = mid.x;
-        prevMidY = mid.y;
+        mode = "zoom";
+      } else if (e.touches.length === 1) {
+        // One finger → move or rotate depending on gesture direction
+        prevX = e.touches[0].pageX;
+        prevY = e.touches[0].pageY;
+        mode = "move";
       }
-    }, { passive: true });
+    });
 
+    // 👉 Touch move
     window.addEventListener("touchmove", (e) => {
       if (!model.visible) return;
 
-      // SINGLE FINGER: rotate horizontally, vertical drag -> move forward/back on Z
-      if (mode === "single" && e.touches.length === 1) {
-        const touch = e.touches[0];
-        const deltaX = touch.pageX - prevX;
-        const deltaY = touch.pageY - prevY;
-
-        // rotate model around Y-axis (horizontal drag)
-        model.rotation.y -= deltaX * rotateSpeed;
-
-        // move forward/back based on vertical drag (positive drag up -> forward)
-        // choose sign so dragging finger up moves model forward (decrease z)
-        model.position.z += deltaY * verticalMoveSpeed;
-
-        prevX = touch.pageX;
-        prevY = touch.pageY;
-      }
-
-      // TWO FINGER: pinch to zoom + two-finger pan to move on X/Z plane
-      if (mode === "two" && e.touches.length === 2) {
-        // pinch -> scale
+      // 🔹 Zoom (pinch)
+      if (mode === "zoom" && e.touches.length === 2) {
         const dx = e.touches[0].pageX - e.touches[1].pageX;
         const dy = e.touches[0].pageY - e.touches[1].pageY;
         const newDistance = Math.hypot(dx, dy);
         const scale = (newDistance / startDistance) * startScale;
-        // clamp scale to avoid zero or too big
-        const clamped = Math.max(0.05, Math.min(scale, 5));
-        model.scale.set(clamped, clamped, clamped);
-
-        // two-finger pan -> move model in X/Z based on midpoint delta
-        const mid = midpoint(e.touches[0], e.touches[1]);
-        const deltaMidX = mid.x - prevMidX;
-        const deltaMidY = mid.y - prevMidY;
-
-        // map screen delta to world movement:
-        // horizontal screen movement -> model.x (left/right)
-        // vertical screen movement -> model.z (forward/back)
-        model.position.x += deltaMidX * moveSpeed;      // left/right correspond to finger direction
-        model.position.z += deltaMidY * moveSpeed;      // drag up -> negative deltaMidY -> move forward/back
-
-        prevMidX = mid.x;
-        prevMidY = mid.y;
+        model.scale.set(scale, scale, scale);
       }
-    }, { passive: true });
 
-    window.addEventListener("touchend", (e) => {
-      // Reset when fingers lifted
-      if (e.touches.length === 0) {
-        mode = null;
-        prevX = prevY = prevMidX = prevMidY = 0;
-      } else if (e.touches.length === 1) {
-        // went from two -> one finger: switch to single mode
-        mode = "single";
+      // 🔹 Move (1 finger drag)
+      if (mode === "move" && e.touches.length === 1) {
+        const deltaX = e.touches[0].pageX - prevX;
+        const deltaY = e.touches[0].pageY - prevY;
+
+        // move sensitivity
+        const moveSpeed = 0.001;
+
+        // Move model on X-Z plane (floor)
+        model.position.x -= deltaX * moveSpeed;
+        model.position.z += deltaY * moveSpeed;
+
         prevX = e.touches[0].pageX;
         prevY = e.touches[0].pageY;
       }
-    }, { passive: true });
+    });
+
+    // 👉 Touch end
+    window.addEventListener("touchend", (e) => {
+      prevX = null;
+      prevY = null;
+      mode = null;
+    });
   });
 }
